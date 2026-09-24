@@ -2,6 +2,47 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const session = require('express-session')
 const customer_routes = require('./router/auth_users.js').authenticated;
+const loginUser = require('./router/auth_users.js').loginUser;
+const genl_routes = require('./router/general.js').general;
+
+const app = express();
+
+app.use(express.json());
+
+// One shared session store so a login at /login or /customer/login works for /customer/auth/* routes
+const customerSession = session({secret:"fingerprint_customer",resave: true, saveUninitialized: true});
+
+app.use("/customer", customerSession);
+
+app.use("/customer/auth/*", function auth(req,res,next){
+    // Check if the user has a valid access token stored in the session
+    if (req.session.authorization) {
+        const token = req.session.authorization['accessToken'];
+        jwt.verify(token, "access", (err, user) => {
+            if (!err) {
+                req.user = user;
+                next();
+            } else {
+                return res.status(403).json({ message: "User not authenticated" });
+            }
+        });
+    } else {
+        return res.status(403).json({ message: "User not logged in" });
+    }
+});
+
+const PORT =5000;
+
+app.use("/customer", customer_routes);
+// Login is available at both /customer/login and /login
+app.post("/login", customerSession, loginUser);
+app.use("/", genl_routes);
+
+app.listen(PORT,()=>console.log("Server is running"));
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const session = require('express-session')
+const customer_routes = require('./router/auth_users.js').authenticated;
 const genl_routes = require('./router/general.js').general;
 
 const app = express();
